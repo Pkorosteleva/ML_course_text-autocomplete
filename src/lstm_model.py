@@ -34,7 +34,7 @@ class LSTMLanguageModel(nn.Module):
                 next_token_id = torch.argmax(output[0, -1, :]).item()
                 
                 # Останавливаемся на PAD токене или если последовательность слишком длинная
-                if next_token_id == 0 or len(tokens) > 50:
+                if next_token_id == 0 or len(tokens) > 20:
                     break
                     
                 input_ids.append(next_token_id)

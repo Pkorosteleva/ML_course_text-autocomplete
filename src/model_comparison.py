@@ -110,20 +110,3 @@ def compare_models():
         print(f"   Цель: '{example['target']}'")
         print(f"   Transformer: '{example['generated']}'")
         print()
-    
-    # Выводы и рекомендации
-    print("\n" + "="*50)
-    print("ВЫВОДЫ И РЕКОМЕНДАЦИИ:")
-    print("="*50)
-    
-    if transformer_rouge1 > lstm_rouge1 and transformer_rouge2 > lstm_rouge2:
-        print("✅ Transformer модель показывает лучшие результаты по метрикам ROUGE")
-        print("Рекомендация: Использовать Transformer модель для продакшена")
-    elif lstm_rouge1 > transformer_rouge1 and lstm_rouge2 > transformer_rouge2:
-        print("✅ LSTM модель показывает лучшие результаты по метрикам ROUGE")
-        print("Рекомендация: Использовать LSTM модель для продакшена")
-    else:
-        print("⚡ Модели показывают сопоставимые результаты")
-        print("Рекомендация: Выбор зависит от конкретных требований:")
-        print("  - Transformer: лучше качество, но больше ресурсов")
-        print("  - LSTM: быстрее, меньше памяти, но может уступать в качестве")
