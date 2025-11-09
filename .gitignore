@@ -1,0 +1,46 @@
+# Данные
+data/raw/
+*.pkl
+*.h5
+*.csv
+
+# Модели
+models/*.pt
+models/*.pth
+models/*.bin
+
+# Большие файлы данных
+data/tweets.txt
+models/*.pth
+models/*.pt
+
+# Кэш Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+*.tmp
+*.temp
+
+# Виртуальное окружение и site-packages
+venv/
+.env/
+*/site-packages/
+*.pyc
+__pycache__/
