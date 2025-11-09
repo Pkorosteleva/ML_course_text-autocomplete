@@ -9,18 +9,18 @@ def clean_text(text):
     text = text.lower()
     text = re.sub(r'@\w+', '', text)  # Удаляем @упоминания
     text = re.sub(r'http\S+|www\S+|https\S+', '', text)  # Удаляем URL
-    text = re.sub(r'[^\w\s.,!?]', '', text)  # Удаляем все кроме букв, цифр и базовой пунктуации
+    text = re.sub(r'[^\w\s]', '', text)  # Удаляем все кроме букв, цифр и базовой пунктуации
     text = ' '.join(text.split())  # Убираем лишние пробелы
     return text
 
-def load_and_process_data(file_path, max_lines=20000):
+def load_and_process_data(file_path, max_lines = 500000):
     """
     Загрузка и обработка данных, чтение не более max_lines строк
     """
     texts = []
     with open(file_path, 'r', encoding='utf-8') as f:
         for i, line in enumerate(f):
-            if i >= max_lines:
+            if i > max_lines:
                 break
             line = line.strip()
             if line:

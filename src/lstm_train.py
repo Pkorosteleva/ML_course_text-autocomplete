@@ -10,11 +10,16 @@ def evaluate_rouge(model, val_loader, vocab, num_samples=100):
     rouge1_scores = []
     rouge2_scores = []
     
+    # Получаем устройство модели
+    device = next(model.parameters()).device
+    
     samples_evaluated = 0
     
     with torch.no_grad():
         for data, targets in val_loader:
-            data = data.long().to(next(model.parameters()).device)
+            # Переносим данные на устройство модели
+            data = data.long().to(device)
+            targets = targets.long().to(device)
             
             for i in range(data.size(0)):
                 if samples_evaluated >= num_samples:
@@ -49,19 +54,43 @@ def evaluate_rouge(model, val_loader, vocab, num_samples=100):
     
     return avg_rouge1, avg_rouge2
 
+def print_gpu_memory():
+    if torch.cuda.is_available():
+        # Получаем текущее устройство
+        device = torch.cuda.current_device()
+        
+        # Полная информация о памяти
+        allocated = torch.cuda.memory_allocated(device) / 1024**3
+        reserved = torch.cuda.memory_reserved(device) / 1024**3
+        total = torch.cuda.get_device_properties(device).total_memory / 1024**3
+        free = total - reserved
+        
+        print(f"GPU Memory - Total: {total:.2f} GB")
+        print(f"             Free: {free:.2f} GB") 
+        print(f"             Allocated: {allocated:.2f} GB")
+        print(f"             Reserved: {reserved:.2f} GB")
+    else:
+        print("CUDA not available")
+
 def train_model():
     from src.next_token_dataset import create_data_loaders
     from src.lstm_model import LSTMLanguageModel
+
+    # Очистка памяти перед началом
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     
+    # Уменьшите batch size в create_data_loaders
     train_loader, val_loader, test_loader, vocab = create_data_loaders()
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = LSTMLanguageModel(vocab_size=vocab['vocab_size']).to(device)
     
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.AdamW(model.parameters(), lr=0.005, weight_decay=0.01)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.5)
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     
-    num_epochs = 10
+    num_epochs = 5
     
     print("Начинаем обучение...")
     print(f"Размер словаря: {vocab['vocab_size']}")
@@ -69,34 +98,57 @@ def train_model():
     print(f"Устройство: {device}")
     print("-" * 50)
     
+    # Gradient Accumulation для сохранения эффективного batch size
+    accumulation_steps = 4  # эффективный batch = 32 * 4 = 128
+    
     for epoch in range(num_epochs):
         model.train()
         total_loss = 0
         start_time = time.time()
         
+        optimizer.zero_grad()  # обнуляем градиенты в начале эпохи
+        
         for batch_idx, (data, targets) in enumerate(train_loader):
             data = data.long().to(device)
             targets = targets.long().to(device)
             
-            optimizer.zero_grad()
             output = model(data)
-            
             loss = criterion(output.reshape(-1, output.size(-1)), targets.reshape(-1))
-            loss.backward()
-            optimizer.step()
             
-            total_loss += loss.item()
+            # Нормализуем loss для accumulation
+            loss = loss / accumulation_steps
+            loss.backward()
+            
+            if (batch_idx + 1) % accumulation_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+            
+            total_loss += loss.item() * accumulation_steps  # возвращаем к оригинальному масштабу
             
             if batch_idx % 50 == 0:
                 avg_loss_so_far = total_loss / (batch_idx + 1)
                 print(f"Эпоха {epoch+1}/{num_epochs} | Батч {batch_idx}/{len(train_loader)} | Loss: {avg_loss_so_far:.4f}")
+                
+                # Периодически показываем использование памяти
+                if batch_idx % 200 == 0:
+                    print_gpu_memory()
+        
+        # Не забудьте сделать step для оставшихся градиентов
+        if len(train_loader) % accumulation_steps != 0:
+            optimizer.step()
+            optimizer.zero_grad()
         
         # Статистика после эпохи
+        scheduler.step()
         epoch_time = time.time() - start_time
         avg_loss = total_loss / len(train_loader)
         
-        # Вычисляем ROUGE только на последней эпохе или каждые N эпох
-        if epoch == num_epochs - 1:  # Только на последней эпохе
+        # Очищаем кэш после каждой эпохи
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        # Вычисляем ROUGE только на последней эпохе для экономии времени
+        if epoch == num_epochs - 1:
             print("Вычисляем ROUGE метрики на 100 примерах...")
             rouge1, rouge2 = evaluate_rouge(model, val_loader, vocab, num_samples=100)
             print(f"Эпоха {epoch+1} завершена:")
@@ -111,8 +163,8 @@ def train_model():
         
         print("-" * 30)
     
-    torch.save(model.state_dict(), './models/lstm_model_50000.pth')
-    print("Модель сохранена в ./models/lstm_model_50000.pth")
+    torch.save(model.state_dict(), './models/lstm_model_bs32_accum4.pth')
+    print("Модель сохранена")
     
     # Примеры предсказаний
     print("\nПримеры предсказаний обученной модели:")

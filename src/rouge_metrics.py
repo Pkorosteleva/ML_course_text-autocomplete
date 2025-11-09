@@ -1,48 +1,19 @@
-from collections import Counter
-
-def rouge_1(candidate, reference):
-    """ROUGE-1: совпадение униграмм (отдельных слов)"""
-    candidate_words = candidate.split()
-    reference_words = reference.split()
-    
-    candidate_count = Counter(candidate_words)
-    reference_count = Counter(reference_words)
-    
-    # Количество совпадающих слов
-    overlap = sum((candidate_count & reference_count).values())
-    
-    # Precision, Recall, F1
-    precision = overlap / len(candidate_words) if candidate_words else 0
-    recall = overlap / len(reference_words) if reference_words else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    
-    return {'precision': precision, 'recall': recall, 'f1': f1}
-
-def rouge_2(candidate, reference):
-    """ROUGE-2: совпадение биграмм (пар слов)"""
-    candidate_words = candidate.split()
-    reference_words = reference.split()
-    
-    # Создаем биграммы
-    candidate_bigrams = [tuple(candidate_words[i:i+2]) for i in range(len(candidate_words)-1)]
-    reference_bigrams = [tuple(reference_words[i:i+2]) for i in range(len(reference_words)-1)]
-    
-    candidate_count = Counter(candidate_bigrams)
-    reference_count = Counter(reference_bigrams)
-    
-    # Количество совпадающих биграмм
-    overlap = sum((candidate_count & reference_count).values())
-    
-    # Precision, Recall, F1
-    precision = overlap / len(candidate_bigrams) if candidate_bigrams else 0
-    recall = overlap / len(reference_bigrams) if reference_bigrams else 0
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
-    
-    return {'precision': precision, 'recall': recall, 'f1': f1}
+from rouge_score import rouge_scorer
 
 def calculate_rouge(generated_text, reference_text):
-    """Вычисляет ROUGE-1 и ROUGE-2 для пары текстов"""
+    """Использование стандартной библиотеки для ROUGE"""
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2'], use_stemmer=True)
+    scores = scorer.score(reference_text, generated_text)
+    
     return {
-        'rouge1': rouge_1(generated_text, reference_text),
-        'rouge2': rouge_2(generated_text, reference_text)
+        'rouge1': {
+            'precision': scores['rouge1'].precision,
+            'recall': scores['rouge1'].recall, 
+            'f1': scores['rouge1'].fmeasure
+        },
+        'rouge2': {
+            'precision': scores['rouge2'].precision,
+            'recall': scores['rouge2'].recall,
+            'f1': scores['rouge2'].fmeasure
+        }
     }

@@ -3,7 +3,7 @@ from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils.rnn import pad_sequence
 
 class NextTokenDataset(Dataset):
-    def __init__(self, file_path, sequence_length=50):
+    def __init__(self, file_path, sequence_length=20):
         self.sequence_length = sequence_length
         
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -30,14 +30,21 @@ class NextTokenDataset(Dataset):
         text = self.texts[idx]
         tokens = text.split()
         
-        # Берем последовательность фиксированной длины
-        if len(tokens) > self.sequence_length:
+        # Фиксированная длина последовательности
+        if len(tokens) >= self.sequence_length:
             tokens = tokens[:self.sequence_length]
+            input_tokens = tokens[:-1]
+            target_tokens = tokens[1:]
+        else:
+            # Если последовательность короче, дополняем PAD токенами
+            input_tokens = tokens[:-1] if len(tokens) > 1 else tokens
+            target_tokens = tokens[1:] if len(tokens) > 1 else tokens
+            
+            # Дополняем до фиксированной длины
+            while len(input_tokens) < self.sequence_length - 1:
+                input_tokens.append('<PAD>')
+                target_tokens.append('<PAD>')
         
-        input_tokens = tokens[:-1]
-        target_tokens = tokens[1:]
-        
-        # Явно указываем тип long
         input_ids = torch.tensor([self.word_to_idx.get(token, 1) for token in input_tokens], dtype=torch.long)
         target_ids = torch.tensor([self.word_to_idx.get(token, 1) for token in target_tokens], dtype=torch.long)
         
@@ -46,16 +53,16 @@ class NextTokenDataset(Dataset):
 def collate_fn(batch):
     inputs, targets = zip(*batch)
     
-    # Паддинг до максимальной длины в батче
-    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
-    targets_padded = pad_sequence(targets, batch_first=True, padding_value=0)
+    # Теперь все последовательности одинаковой длины, просто stack
+    inputs_padded = torch.stack(inputs)
+    targets_padded = torch.stack(targets)
     
     return inputs_padded, targets_padded
 
 def create_data_loaders():
-    train_dataset = NextTokenDataset('./data/train_cleaned.txt')
-    val_dataset = NextTokenDataset('./data/val_cleaned.txt')
-    test_dataset = NextTokenDataset('./data/test_cleaned.txt')
+    train_dataset = NextTokenDataset('./data/train_cleaned.txt', sequence_length=20)
+    val_dataset = NextTokenDataset('./data/val_cleaned.txt', sequence_length=20)
+    test_dataset = NextTokenDataset('./data/test_cleaned.txt', sequence_length=20)
     
     vocab = {
         'word_to_idx': train_dataset.word_to_idx,
@@ -63,7 +70,8 @@ def create_data_loaders():
         'vocab_size': train_dataset.vocab_size
     }
     
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)
+    # Уменьшите batch size!
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, collate_fn=collate_fn)  # было 128
     val_loader = DataLoader(val_dataset, batch_size=64, collate_fn=collate_fn)
     test_loader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
     

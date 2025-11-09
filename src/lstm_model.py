@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class LSTMLanguageModel(nn.Module):
-    def __init__(self, vocab_size, embedding_dim=256, hidden_dim=512, num_layers=3, dropout=0.3):
+    def __init__(self, vocab_size, embedding_dim=64, hidden_dim=128, num_layers=2, dropout=0.3):
         super(LSTMLanguageModel, self).__init__()
         
         self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)
@@ -18,17 +18,27 @@ class LSTMLanguageModel(nn.Module):
         return output
 
     
-    def predict_next_tokens(self, input_text, vocab, num_tokens=5):
+    def predict_next_tokens(self, input_text, vocab, num_tokens=10):
         self.eval()
         tokens = input_text.split()
         input_ids = [vocab['word_to_idx'].get(token, 1) for token in tokens]
         
+        # Получаем устройство модели
+        device = next(self.parameters()).device
+        
         with torch.no_grad():
             for _ in range(num_tokens):
-                input_tensor = torch.tensor([input_ids])
+                # Создаем тензор на том же устройстве, что и модель
+                input_tensor = torch.tensor([input_ids], dtype=torch.long).to(device)
                 output = self.forward(input_tensor)
                 next_token_id = torch.argmax(output[0, -1, :]).item()
+                
+                # Останавливаемся на PAD токене или если последовательность слишком длинная
+                if next_token_id == 0 or len(tokens) > 50:
+                    break
+                    
                 input_ids.append(next_token_id)
-                tokens.append(vocab['idx_to_word'].get(next_token_id, '<UNK>'))
+                next_token = vocab['idx_to_word'].get(next_token_id, '<UNK>')
+                tokens.append(next_token)
         
         return ' '.join(tokens)
